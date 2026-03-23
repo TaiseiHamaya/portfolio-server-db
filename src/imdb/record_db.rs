@@ -1,27 +1,59 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
-use tokio::sync::RwLock;
+use crate::generated::proto_server::Vector3;
 
-use crate::generated::proto_server::{SessionId, Vector3};
+#[derive(Debug, Clone)]
+pub struct PlayerRecord {
+    pub user_id: u64,
 
-pub struct Record {
-    session_id: SessionId,
+    pub user_name: String,
 
-    user_name: String,
-
-    last_zone_id: u64,
-    last_position: Option<Vector3>,
+    pub last_zone_id: u64,
+    pub last_position: Option<Vector3>,
 }
 
+#[derive(Debug, Default)]
 pub struct RecordImdb {
-    pub records: Arc<RwLock<HashMap<SessionId, Record>>>,
+    records: HashMap<u64, PlayerRecord>,
+}
+
+impl PlayerRecord {
+    pub fn new(
+        user_id: u64,
+        user_name: String,
+        last_zone_id: u64,
+        last_position: Option<Vector3>,
+    ) -> Self {
+        Self {
+            user_id,
+            user_name,
+            last_zone_id,
+            last_position,
+        }
+    }
 }
 
 impl RecordImdb {
-    pub fn new() -> Self {
-        Self {
-            records: Arc::new(RwLock::new(HashMap::new())),
+    pub fn load_player_record(&self, user_id: u64) -> Option<PlayerRecord> {
+        self.records.get(&user_id).cloned()
+    }
+
+    pub fn save_player_record(&mut self, record: PlayerRecord) -> Option<()> {
+        let Some(player) = self.records.get_mut(&record.user_id) else {
+            return None;
+        };
+
+        *player = record;
+        Some(())
+    }
+
+    pub fn create_player_record(&mut self, user_id: u64) -> Option<()> {
+        if self.records.contains_key(&user_id) {
+            return None;
         }
+
+        let record = PlayerRecord::new(user_id, String::new(), 0, None);
+        self.records.insert(user_id, record);
+        Some(())
     }
 }

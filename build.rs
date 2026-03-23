@@ -15,10 +15,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_client(false)
         .build_server(true)
         .out_dir("src/generated/server/")
+        .type_attribute("SessionId", "#[derive(PartialOrd, Ord)]")
         .compile_protos(
             &[
                 "process/db/record/service.proto",
-                "process/db/session/service.proto",
+                "process/db/user/service.proto",
             ],
             &["portfolio-proto"],
         )?;
