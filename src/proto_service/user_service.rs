@@ -33,9 +33,10 @@ impl UserDbService for UserDbServiceImpl {
 
         // ログインチェック
         match users.auth_user(&session_id) {
-            Some(session_id) => {
+            Some((user_id, session_id)) => {
                 return Ok(tonic::Response::new(PayloadLoginResponse {
                     is_succeeded: true,
+                    user_id: user_id,
                     session_id: Some(session_id),
                 }));
             }

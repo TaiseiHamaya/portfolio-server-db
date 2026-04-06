@@ -48,14 +48,14 @@ impl UserImdb {
         Ok(generated_session_id)
     }
 
-    pub fn auth_user(&mut self, session_id: &SessionId) -> Option<SessionId> {
+    pub fn auth_user(&mut self, session_id: &SessionId) -> Option<(u64, SessionId)> {
         let user_id = self.index_session_id.get(session_id)?;
         let user = self.users.get_mut(user_id)?;
         if user.session_id.is_none() {
             user.session_id = generate_session_id().into();
         }
 
-        Some(user.session_id.unwrap())
+        Some((user.user_id, user.session_id.unwrap()))
     }
 
     pub fn logout_user(&mut self, user_id: u64) -> Option<()> {
