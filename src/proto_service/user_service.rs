@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use crate::{
     generated::proto_server::{
         PayloadLoginRequest, PayloadLoginResponse, PayloadLogoutRequest, PayloadLogoutResponse,
-        PayloadSignupResponse, user_db_service_server::UserDbService,
+        PayloadSignupRequest, PayloadSignupResponse, user_db_service_server::UserDbService,
     },
     imdb::user_db::UserImdb,
 };
@@ -70,7 +70,7 @@ impl UserDbService for UserDbServiceImpl {
     /// Signup: create new player.
     async fn signup(
         &self,
-        _: tonic::Request<()>,
+        _request: tonic::Request<PayloadSignupRequest>,
     ) -> std::result::Result<tonic::Response<PayloadSignupResponse>, tonic::Status> {
         let Ok(mut users) = self.user_imdb.lock() else {
             return Err(tonic::Status::internal(
