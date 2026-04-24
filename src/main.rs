@@ -3,6 +3,7 @@ use tonic::transport::Server;
 
 mod generated;
 mod imdb;
+mod logger;
 mod proto_service;
 
 use crate::generated::proto_server::{
@@ -15,18 +16,27 @@ use crate::proto_service::{
 
 #[tokio::main]
 async fn main() {
+    logger::init().expect("Failed to initialize logger.");
     // Tonicサーバの起動
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 50051);
+    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 50050);
 
     // サービスの実装
     let session_service = UserDbServiceImpl::default();
     let record_service = RecordPlayerDbServiceImpl::default();
+    tokio::spawn(async move {
+        // サーバの構築と起動
+        Server::builder()
+            .add_service(UserDbServiceServer::new(session_service))
+            .add_service(RecordPlayerDbServiceServer::new(record_service))
+            .serve(addr)
+            .await
+            .expect("Failed to start gRPC server");
+    });
 
-    // サーバの構築と起動
-    Server::builder()
-        .add_service(UserDbServiceServer::new(session_service))
-        .add_service(RecordPlayerDbServiceServer::new(record_service))
-        .serve(addr)
+    log::info!("DB server was initialized and is listening on {}", addr);
+
+    tokio::signal::ctrl_c()
         .await
-        .expect("Failed to start gRPC server");
+        .expect("Failed to listen for shutdown signal");
+    log::info!("Shutting down gracefuly...");
 }

@@ -1,2 +1,2 @@
 [build]
-target-dir = "../target/portfolio-server-session"
+target-dir = "../target/portfolio-server-db"

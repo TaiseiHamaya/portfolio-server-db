@@ -47,12 +47,12 @@ impl RecordImdb {
         Some(())
     }
 
-    pub fn create_player_record(&mut self, user_id: u64) -> Option<()> {
+    pub fn create_player_record(&mut self, user_id: u64, username: String) -> Option<()> {
         if self.records.contains_key(&user_id) {
             return None;
         }
 
-        let record = PlayerRecord::new(user_id, String::new(), 0, None);
+        let record = PlayerRecord::new(user_id, username, 0, None);
         self.records.insert(user_id, record);
         Some(())
     }

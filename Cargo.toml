@@ -1,5 +1,5 @@
 [package]
-name = "portfolio-server-session"
+name = "portfolio-server-db"
 version = "0.1.0"
 edition = "2024"
 
@@ -13,6 +13,8 @@ prost = "0.14.3"
 log = "0.4"
 simplelog = "0.12"
 protobuf = "4.32.1-release"
+chrono = "0.4.44"
+rand = "0.10.1"
 
 [build-dependencies]
 tonic-prost-build = "0.14"
