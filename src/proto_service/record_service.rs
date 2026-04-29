@@ -94,7 +94,10 @@ impl RecordPlayerDbService for RecordPlayerDbServiceImpl {
         &self,
         request: tonic::Request<PayloadPlayerSaveRequest>,
     ) -> std::result::Result<tonic::Response<PayloadPlayerSaveResponse>, tonic::Status> {
-        log::info!("Received save player request: {:?}", request);
+        log::info!(
+            "Received save player request: {:?}",
+            request.get_ref().record
+        );
         let request = request.into_inner();
         let Some(record) = request.record else {
             // 受け取ったリクエストにプレイヤーデータが添付されていない
