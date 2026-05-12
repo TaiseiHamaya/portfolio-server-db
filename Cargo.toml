@@ -17,7 +17,10 @@ chrono = "0.4.44"
 rand = "0.10.1"
 dotenvy = "0.15.7"
 etcd-client = "0.18.0"
-aws-config = "1.8.16"
+aws-config = { version = "1.8.16", features = ["behavior-version-latest"] }
+aws-sdk-dynamodb = "1.111.0"
+serde_dynamo = { version = "4.3.0", features = ["aws-sdk-dynamodb+1"] }
+serde = { version = "1.0.228", features = ["derive"] }
 
 [build-dependencies]
 tonic-prost-build = "0.14"

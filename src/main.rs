@@ -2,13 +2,15 @@ use std::env;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tonic::transport::Server;
 
+mod db_helper;
 mod ec2_helper;
 mod etcd_client_helper;
 mod generated;
-mod imdb;
 mod logger;
 mod proto_service;
 
+use crate::db_helper::player_db::PlayerDBHelper;
+use crate::db_helper::user_db::UserDBHelper;
 use crate::generated::proto_server::{
     record_player_db_service_server::RecordPlayerDbServiceServer,
     user_db_service_server::UserDbServiceServer,
@@ -24,6 +26,29 @@ async fn main() {
     if dotenvy::dotenv().is_ok() {
         log::info!(".env file loaded successfully.");
     }
+
+    let config = aws_config::load_from_env().await;
+    // playerデータ用dynamoDBクライアントの構築
+    let player_db_config = if let Ok(endpoint_url) = std::env::var("PLAYER_DB_ENDPOINT") {
+        log::info!("Using custom DynamoDB endpoint: {}", endpoint_url);
+        aws_sdk_dynamodb::config::Builder::from(&config)
+            .endpoint_url(endpoint_url)
+            .build()
+    } else {
+        aws_sdk_dynamodb::config::Builder::from(&config).build()
+    };
+    let player_db_client = aws_sdk_dynamodb::Client::from_conf(player_db_config);
+
+    // user認証用dynamoDBクライアントの構築
+    let user_db_config = if let Ok(endpoint_url) = std::env::var("USER_DB_ENDPOINT") {
+        log::info!("Using custom DynamoDB endpoint: {}", endpoint_url);
+        aws_sdk_dynamodb::config::Builder::from(&config)
+            .endpoint_url(endpoint_url)
+            .build()
+    } else {
+        aws_sdk_dynamodb::config::Builder::from(&config).build()
+    };
+    let user_db_client = aws_sdk_dynamodb::Client::from_conf(user_db_config);
 
     let server_address = ec2_helper::get_local_ip().await;
     let port = env::var("SERVER_PORT")
@@ -44,8 +69,8 @@ async fn main() {
     let service_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port);
     log::info!("Starting gRPC server on {}", service_address);
     // サービスの実装
-    let session_service = UserDbServiceImpl::default();
-    let record_service = RecordPlayerDbServiceImpl::default();
+    let session_service = UserDbServiceImpl::new(UserDBHelper::new(user_db_client.clone()));
+    let record_service = RecordPlayerDbServiceImpl::new(PlayerDBHelper::new(player_db_client));
     tokio::spawn(async move {
         // サーバの構築と起動
         Server::builder()

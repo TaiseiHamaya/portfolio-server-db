@@ -1,16 +1,21 @@
-use std::sync::{Arc, Mutex};
-
 use crate::{
+    db_helper::user_db::UserDBHelper,
     generated::proto_server::{
         PayloadLoginRequest, PayloadLoginResponse, PayloadLogoutRequest, PayloadLogoutResponse,
-        PayloadSignupRequest, PayloadSignupResponse, user_db_service_server::UserDbService,
+        PayloadSignupRequest, PayloadSignupResponse, SessionId,
+        user_db_service_server::UserDbService,
     },
-    imdb::user_db::UserImdb,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct UserDbServiceImpl {
-    user_imdb: Arc<Mutex<UserImdb>>,
+    user_imdb: UserDBHelper,
+}
+
+impl UserDbServiceImpl {
+    pub fn new(user_imdb: UserDBHelper) -> Self {
+        Self { user_imdb }
+    }
 }
 
 #[tonic::async_trait]
@@ -28,31 +33,42 @@ impl UserDbService for UserDbServiceImpl {
             return Err(tonic::Status::invalid_argument("Missing session_id"));
         };
 
-        let Ok(mut users) = self.user_imdb.lock() else {
-            log::error!("Failed to acquire lock on user database.");
-            return Err(tonic::Status::internal(
-                "Failed to acquire lock on user database.",
-            ));
-        };
-
         // ログインチェック
         log::info!(
             "Authenticating user with session_id: {:016x}{:016x}",
             session_id.high,
             session_id.low
         );
-        match users.auth_user(&session_id) {
+        let session_id_bytes: [u8; 16] = match session_id
+            .high
+            .to_be_bytes()
+            .iter()
+            .chain(session_id.low.to_be_bytes().iter())
+            .cloned()
+            .collect::<Vec<u8>>()
+            .try_into()
+        {
+            Ok(bytes) => bytes,
+            Err(_) => {
+                log::error!("Failed to convert session_id to bytes.");
+                return Err(tonic::Status::invalid_argument("Invalid session_id format"));
+            }
+        };
+        match self.user_imdb.auth_user(session_id_bytes).await {
             Some((user_id, session_id)) => {
                 log::info!("User logged in successfully: {}", user_id);
                 return Ok(tonic::Response::new(PayloadLoginResponse {
                     is_succeeded: true,
                     user_id,
-                    session_id: Some(session_id),
+                    session_id: Some(SessionId {
+                        high: u64::from_be_bytes(session_id[0..8].try_into().unwrap_or_default()),
+                        low: u64::from_be_bytes(session_id[8..16].try_into().unwrap_or_default()),
+                    }),
                 }));
             }
             None => {
                 log::error!(
-                    "Invalid session_id provided. Session ID: {:016x}{:016x}",
+                    "Invalid session_id provided. {:016x}{:#016x}",
                     session_id.high,
                     session_id.low
                 );
@@ -67,15 +83,8 @@ impl UserDbService for UserDbServiceImpl {
     ) -> std::result::Result<tonic::Response<PayloadLogoutResponse>, tonic::Status> {
         log::info!("Received logout request: {:?}", request);
 
-        let Ok(mut users) = self.user_imdb.lock() else {
-            log::error!("Failed to acquire lock on user database.");
-            return Err(tonic::Status::internal(
-                "Failed to acquire lock on user database.",
-            ));
-        };
-
         let user_id = request.into_inner().user_id;
-        match users.logout_user(user_id) {
+        match self.user_imdb.logout_user(user_id).await {
             Some(()) => {
                 log::info!("User logged out successfully: {}", user_id);
                 return Ok(tonic::Response::new(PayloadLogoutResponse {
@@ -93,15 +102,12 @@ impl UserDbService for UserDbServiceImpl {
         &self,
         _request: tonic::Request<PayloadSignupRequest>,
     ) -> std::result::Result<tonic::Response<PayloadSignupResponse>, tonic::Status> {
-        let Ok(mut users) = self.user_imdb.lock() else {
-            log::error!("Failed to acquire lock on user database.");
-            return Err(tonic::Status::internal(
-                "Failed to acquire lock on user database.",
-            ));
-        };
-
-        match users.create_user() {
-            Ok((user_id, session_id)) => {
+        match self.user_imdb.create_user().await {
+            Some((user_id, session_id_byte)) => {
+                let session_id = SessionId {
+                    high: u64::from_be_bytes(session_id_byte[0..8].try_into().unwrap_or_default()),
+                    low: u64::from_be_bytes(session_id_byte[8..16].try_into().unwrap_or_default()),
+                };
                 log::info!(
                     "User created successfully: User ID: {}, Session ID: {:016x}{:016x}",
                     user_id,
@@ -114,7 +120,7 @@ impl UserDbService for UserDbServiceImpl {
                     session_id: Some(session_id),
                 }));
             }
-            Err(_) => {
+            None => {
                 log::error!("Failed to create user.");
                 return Err(tonic::Status::internal("Failed to create user."));
             }

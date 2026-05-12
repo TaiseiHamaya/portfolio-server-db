@@ -11,7 +11,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_client(false)
         .build_server(true)
         .out_dir("src/generated/server/")
-        .type_attribute("SessionId", "#[derive(PartialOrd, Ord)]")
+        .type_attribute("Vector3", "#[derive(serde::Serialize, serde::Deserialize)]")
+        .type_attribute(
+            "SessionId",
+            "#[derive(serde::Serialize, serde::Deserialize)]",
+        )
         .compile_protos(
             &[
                 "process/db/record/service.proto",
