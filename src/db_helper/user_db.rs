@@ -60,19 +60,44 @@ impl UserDBHelper {
     }
 
     pub async fn auth_user(&self, session_id: [u8; 16]) -> Option<(u64, [u8; 16])> {
-        let mut key = std::collections::HashMap::new();
-        key.insert("session_id", serde_bytes::Bytes::new(&session_id));
-        let item = serde_dynamo::to_item(key).ok()?;
-        let result: Option<User> = self
+        let result: Option<User> = match self
             .db_client
-            .get_item()
+            .query()
             .table_name("UserSession")
-            .set_key(Some(item))
+            .key_condition_expression("#pk = :pk_val")
+            .expression_attribute_names("#pk", "session_id")
+            .expression_attribute_values(
+                ":pk_val",
+                aws_sdk_dynamodb::types::AttributeValue::B(session_id.to_vec().into()),
+            )
             .send()
             .await
-            .ok()
-            .and_then(|output| output.item)
-            .and_then(|item| serde_dynamo::from_item(item).ok());
+        {
+            Ok(output) => match output.count {
+                1 => output
+                    .items
+                    .and_then(|items| items.into_iter().next())
+                    .and_then(|item| serde_dynamo::from_item(item).ok()),
+                0 => {
+                    log::info!(
+                        "INFO | DB | User | auth_user | No user found for session_id: {:?}",
+                        session_id
+                    );
+                    None
+                }
+                _ => {
+                    log::error!(
+                        "ERR | DB | User | auth_user | Multiple users found for session_id: {:?}",
+                        session_id
+                    );
+                    None
+                }
+            },
+            Err(e) => {
+                log::error!("ERR | DB | User | auth_user | Info: {:?}", e);
+                return None;
+            }
+        };
         result.map(|user| {
             let user_id = user.user_id.parse::<u64>().unwrap_or_default();
             let session_id = user.session_id;
