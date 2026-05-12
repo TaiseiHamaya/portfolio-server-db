@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub user_id: String,
-    pub session_id: [u8; 16],
+    pub session_id: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -19,19 +19,19 @@ impl UserDBHelper {
 }
 
 impl UserDBHelper {
-    fn generate_session_id(&self) -> [u8; 16] {
-        let mut session_id = [0u8; 16];
+    fn generate_session_id(&self) -> Vec<u8> {
+        let mut session_id = vec![0u8; 16];
         rngs::ThreadRng::default().fill_bytes(&mut session_id);
         session_id
     }
 
-    pub async fn create_user(&self) -> Option<(u64, [u8; 16])> {
-        // Congito IDの生成
+    pub async fn create_user(&self) -> Option<(u64, Vec<u8>)> {
+        // SessionIDの生成
         let user_id = rngs::ThreadRng::default().next_u64();
         let session_id = self.generate_session_id();
         let user = User {
             user_id: user_id.to_string(),
-            session_id,
+            session_id: session_id.clone(),
         };
 
         // ユーザーを追加
@@ -51,11 +51,14 @@ impl UserDBHelper {
                 // 生成されたセッションIDを返す
                 Some((user_id, session_id))
             }
-            Err(_) => None,
+            Err(e) => {
+                log::error!("ERR | DB | User | create_user | Info: {}", e);
+                None
+            }
         }
     }
 
-    pub async fn auth_user(&self, session_id: [u8; 16]) -> Option<(u64, [u8; 16])> {
+    pub async fn auth_user(&self, session_id: Vec<u8>) -> Option<(u64, Vec<u8>)> {
         let item = serde_dynamo::to_item(session_id).ok()?;
         let result: Option<User> = self
             .db_client
@@ -69,7 +72,8 @@ impl UserDBHelper {
             .and_then(|item| serde_dynamo::from_item(item).ok());
         result.map(|user| {
             let user_id = user.user_id.parse::<u64>().unwrap_or_default();
-            (user_id, user.session_id)
+            let session_id = user.session_id;
+            (user_id, session_id)
         })
     }
 

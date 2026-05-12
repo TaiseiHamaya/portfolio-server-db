@@ -39,7 +39,7 @@ impl UserDbService for UserDbServiceImpl {
             session_id.high,
             session_id.low
         );
-        let session_id_bytes: [u8; 16] = match session_id
+        let session_id_bytes = match session_id
             .high
             .to_be_bytes()
             .iter()
