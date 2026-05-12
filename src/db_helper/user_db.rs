@@ -65,7 +65,7 @@ impl UserDBHelper {
             .query()
             .table_name("UserSession")
             .key_condition_expression("#pk = :pk_val")
-            .expression_attribute_names("#pk", "pk")
+            .expression_attribute_names("#pk", "session_id")
             .expression_attribute_values(
                 ":pk_val",
                 aws_sdk_dynamodb::types::AttributeValue::B(session_id.to_vec().into()),
