@@ -103,7 +103,16 @@ impl RecordPlayerDbService for RecordPlayerDbServiceImpl {
         );
 
         // プレイヤーデータを保存
-        let user_id = u64::from_be_bytes(player_record.user_id);
+        let user_id = match player_record.user_id.parse::<u64>() {
+            Ok(id) => id,
+            Err(_) => {
+                log::error!(
+                    "DB | Player | save_player | Invalid user_id format: {}",
+                    player_record.user_id
+                );
+                return Err(tonic::Status::invalid_argument("Invalid user_id"));
+            }
+        };
         match self.record_imdb.save_player_record(player_record).await {
             Some(()) => {
                 log::info!("Player record saved successfully for user_id: {}", user_id);

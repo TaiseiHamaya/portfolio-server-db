@@ -4,7 +4,7 @@ use crate::generated::proto_server::Vector3;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerRecord {
-    pub user_id: [u8; 8],
+    pub user_id: String,
 
     pub user_name: String,
 
@@ -20,7 +20,7 @@ impl PlayerRecord {
         last_position: Option<Vector3>,
     ) -> Self {
         Self {
-            user_id: user_id.to_be_bytes(),
+            user_id: user_id.to_string(),
             user_name,
             last_zone_id,
             last_position,
@@ -46,7 +46,7 @@ impl PlayerDBHelper {
             .table_name("PlayerData")
             .key(
                 "user_id",
-                aws_sdk_dynamodb::types::AttributeValue::B(user_id.to_be_bytes().to_vec().into()),
+                aws_sdk_dynamodb::types::AttributeValue::S(user_id.to_string()),
             )
             .send()
             .await
