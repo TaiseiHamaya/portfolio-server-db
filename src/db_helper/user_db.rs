@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub user_id: String,
-    pub session_id: Vec<u8>,
+    #[serde(with = "serde_bytes")]
+    pub session_id: [u8; 16],
 }
 
 #[derive(Debug)]
@@ -19,19 +20,19 @@ impl UserDBHelper {
 }
 
 impl UserDBHelper {
-    fn generate_session_id(&self) -> Vec<u8> {
-        let mut session_id = vec![0u8; 16];
+    fn generate_session_id(&self) -> [u8; 16] {
+        let mut session_id = [0u8; 16];
         rngs::ThreadRng::default().fill_bytes(&mut session_id);
         session_id
     }
 
-    pub async fn create_user(&self) -> Option<(u64, Vec<u8>)> {
+    pub async fn create_user(&self) -> Option<(u64, [u8; 16])> {
         // SessionIDの生成
         let user_id = rngs::ThreadRng::default().next_u64();
         let session_id = self.generate_session_id();
         let user = User {
             user_id: user_id.to_string(),
-            session_id: session_id.clone(),
+            session_id,
         };
 
         // ユーザーを追加
@@ -58,8 +59,10 @@ impl UserDBHelper {
         }
     }
 
-    pub async fn auth_user(&self, session_id: Vec<u8>) -> Option<(u64, Vec<u8>)> {
-        let item = serde_dynamo::to_item(session_id).ok()?;
+    pub async fn auth_user(&self, session_id: [u8; 16]) -> Option<(u64, [u8; 16])> {
+        let mut key = std::collections::HashMap::new();
+        key.insert("session_id", serde_bytes::Bytes::new(&session_id));
+        let item = serde_dynamo::to_item(key).ok()?;
         let result: Option<User> = self
             .db_client
             .get_item()
